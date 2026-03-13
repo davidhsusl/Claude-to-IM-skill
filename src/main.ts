@@ -29,6 +29,7 @@ const PID_FILE = path.join(RUNTIME_DIR, 'bridge.pid');
  * Resolve the LLM provider based on the runtime setting.
  * - 'claude' (default): uses Claude Code SDK via SDKLLMProvider
  * - 'codex': uses @openai/codex-sdk via CodexProvider
+ * - 'copilot': uses GitHub Copilot CLI via CopilotProvider
  * - 'auto': tries Claude first, falls back to Codex
  */
 async function resolveProvider(config: Config, pendingPerms: PendingPermissions): Promise<LLMProvider> {
@@ -37,6 +38,11 @@ async function resolveProvider(config: Config, pendingPerms: PendingPermissions)
   if (runtime === 'codex') {
     const { CodexProvider } = await import('./codex-provider.js');
     return new CodexProvider(pendingPerms);
+  }
+
+  if (runtime === 'copilot') {
+    const { CopilotProvider } = await import('./copilot-provider.js');
+    return new CopilotProvider();
   }
 
   if (runtime === 'auto') {
