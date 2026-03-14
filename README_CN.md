@@ -10,14 +10,14 @@
 
 ## 工作原理
 
-本 Skill 运行一个后台守护进程，将你的 IM 机器人连接到 Claude Code 或 Codex 会话。来自 IM 的消息被转发给 AI 编程代理，响应（包括工具调用、权限请求、流式预览）会发回到聊天中。
+本 Skill 运行一个后台守护进程，将你的 IM 机器人连接到 Claude Code、Codex 或 Copilot CLI 会话。来自 IM 的消息被转发给 AI 编程代理，响应（包括工具调用、权限请求、流式预览）会发回到聊天中。
 
 ```
 你 (Telegram/Discord/飞书/QQ)
   ↕ Bot API
 后台守护进程 (Node.js)
-  ↕ Claude Agent SDK 或 Codex SDK（通过 CTI_RUNTIME 配置）
-Claude Code / Codex → 读写你的代码库
+  ↕ Claude Agent SDK、Codex SDK 或 Copilot CLI（通过 CTI_RUNTIME 配置）
+Claude Code / Codex / Copilot → 读写你的代码库
 ```
 
 ## 功能特点
@@ -26,6 +26,7 @@ Claude Code / Codex → 读写你的代码库
 - **交互式配置** — 引导式向导逐步收集 token，附带详细获取说明
 - **权限控制** — 工具调用需要在聊天中通过内联按钮（Telegram/Discord）或文本 `/perm` 命令（飞书/QQ）明确批准
 - **流式预览** — 实时查看 Claude 的输出（Telegram 和 Discord 支持）
+- **聊天内控制命令** — 可直接从 Telegram 或 Discord 切换工作目录、runtime、model
 - **会话持久化** — 对话在守护进程重启后保留
 - **密钥保护** — token 以 `chmod 600` 存储，日志中自动脱敏
 - **无需编写代码** — 安装 Skill 后运行 `/claude-to-im setup` 即可
@@ -35,6 +36,7 @@ Claude Code / Codex → 读写你的代码库
 - **Node.js >= 20**
 - **Claude Code CLI**（`CTI_RUNTIME=claude` 或 `auto` 时需要）— 已安装并完成认证（`claude` 命令可用）
 - **Codex CLI**（`CTI_RUNTIME=codex` 或 `auto` 时需要）— `npm install -g @openai/codex`。鉴权：运行 `codex auth login`，或设置 `OPENAI_API_KEY`（可选，API 模式）
+- **GitHub Copilot CLI**（`CTI_RUNTIME=copilot` 时需要）— 已完成认证，且 `copilot` 命令可在 `PATH` 中找到
 
 ## 安装
 
@@ -116,6 +118,25 @@ bash ~/code/Claude-to-IM-skill/scripts/install-codex.sh --link
 
 当 Claude 需要使用工具（编辑文件、运行命令）时，聊天中会弹出带有 **允许** / **拒绝** 按钮的权限请求（Telegram/Discord），或文本 `/perm` 命令提示（飞书/QQ）。
 
+### 4. 在聊天里直接控制当前会话
+
+Telegram 与 Discord 支持在聊天中直接发送控制命令：
+
+```text
+/cwd /absolute/path
+/mode code
+/provider codex
+/model gpt-5.2-codex
+/model codex gpt-5.2-codex
+/status
+```
+
+- `/provider claude|codex|copilot|auto` 会更新 `CTI_RUNTIME`，并自动重启 bridge。
+- `/model <name>` 会更新当前聊天使用的 model，并自动重启 bridge。
+- `/model <provider> <name>` 可一次同时切换 runtime 与 model。
+- `default` 会清掉 model override，改回 runtime 自己的默认值。
+- Discord 也支持 `!cwd`、`!mode`、`!provider`、`!model`、`!status` 这些别名。
+
 ## 命令列表
 
 所有命令在 Claude Code 或 Codex 中执行：
@@ -130,6 +151,21 @@ bash ~/code/Claude-to-IM-skill/scripts/install-codex.sh --link
 | `/claude-to-im logs 200` | "logs 200" | 查看最近 200 行日志 |
 | `/claude-to-im reconfigure` | "reconfigure" / "修改配置" | 交互式修改配置 |
 | `/claude-to-im doctor` | "doctor" / "诊断" | 诊断问题 |
+
+### Telegram / Discord 聊天命令
+
+以下命令是发给 Telegram 或 Discord 机器人本身，不是发给 Claude Code 的 slash command：
+
+| 聊天命令 | 说明 |
+|---|---|
+| `/cwd /path` | 切换当前聊天绑定的工作目录 |
+| `/mode plan|code|ask` | 切换执行模式 |
+| `/provider claude|codex|copilot|auto` | 切换 runtime backend，并自动重启 bridge |
+| `/model <name>` | 切换当前聊天 model，并自动重启 bridge |
+| `/model <provider> <name>` | 一次同时切换 runtime 与 model |
+| `/status` | 查看当前会话、runtime、cwd 与 model |
+
+对于 Codex runtime，bridge 现在会把显式设置的 model 继续传给 Codex CLI。请使用 Codex 实际支持的 model slug，例如 `gpt-5.2-codex` 或 `gpt-5.2`。如果某个 slug 不在 `~/.codex/models_cache.json` 里，Codex 可能会忽略它或自动改写。
 
 ## 平台配置指南
 

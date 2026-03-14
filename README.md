@@ -10,14 +10,14 @@ Bridge Claude Code / Codex to IM platforms — chat with AI coding agents from T
 
 ## How It Works
 
-This skill runs a background daemon that connects your IM bots to Claude Code or Codex sessions. Messages from IM are forwarded to the AI coding agent, and responses (including tool use, permission requests, streaming previews) are sent back to your chat.
+This skill runs a background daemon that connects your IM bots to Claude Code, Codex, or Copilot CLI sessions. Messages from IM are forwarded to the AI coding agent, and responses (including tool use, permission requests, streaming previews) are sent back to your chat.
 
 ```
 You (Telegram/Discord/Feishu/QQ)
   ↕ Bot API
 Background Daemon (Node.js)
-  ↕ Claude Agent SDK or Codex SDK (configurable via CTI_RUNTIME)
-Claude Code / Codex → reads/writes your codebase
+  ↕ Claude Agent SDK, Codex SDK, or Copilot CLI (configurable via CTI_RUNTIME)
+Claude Code / Codex / Copilot → reads/writes your codebase
 ```
 
 ## Features
@@ -26,6 +26,7 @@ Claude Code / Codex → reads/writes your codebase
 - **Interactive setup** — guided wizard collects tokens with step-by-step instructions
 - **Permission control** — tool calls require explicit approval via inline buttons (Telegram/Discord) or text `/perm` commands (Feishu/QQ)
 - **Streaming preview** — see Claude's response as it types (Telegram & Discord)
+- **In-chat control commands** — switch working directory, runtime, and model directly from Telegram or Discord
 - **Session persistence** — conversations survive daemon restarts
 - **Secret protection** — tokens stored with `chmod 600`, auto-redacted in all logs
 - **Zero code required** — install the skill and run `/claude-to-im setup`, that's it
@@ -35,6 +36,7 @@ Claude Code / Codex → reads/writes your codebase
 - **Node.js >= 20**
 - **Claude Code CLI** (for `CTI_RUNTIME=claude` or `auto`) — installed and authenticated (`claude` command available)
 - **Codex CLI** (for `CTI_RUNTIME=codex` or `auto`) — `npm install -g @openai/codex`. Auth: run `codex auth login`, or set `OPENAI_API_KEY` (optional, for API mode)
+- **GitHub Copilot CLI** (for `CTI_RUNTIME=copilot`) — authenticated `copilot` command available in `PATH`
 
 ## Installation
 
@@ -116,6 +118,25 @@ Open your IM app and send a message to your bot. Claude Code will respond.
 
 When Claude needs to use a tool (edit a file, run a command), you'll see a permission prompt with **Allow** / **Deny** buttons right in the chat (Telegram/Discord), or a text `/perm` command prompt (Feishu/QQ).
 
+### 4. Control the active session from chat
+
+Telegram and Discord chats support session control commands directly inside the conversation:
+
+```text
+/cwd /absolute/path
+/mode code
+/provider codex
+/model gpt-5.2-codex
+/model codex gpt-5.2-codex
+/status
+```
+
+- `/provider claude|codex|copilot|auto` updates `CTI_RUNTIME` and restarts the bridge automatically.
+- `/model <name>` updates the default model for the current chat and restarts the bridge automatically.
+- `/model <provider> <name>` changes both runtime and model in one command.
+- `default` resets the model override and falls back to the runtime default.
+- Discord also accepts `!cwd`, `!mode`, `!provider`, `!model`, and `!status`.
+
 ## Commands
 
 All commands are run inside Claude Code or Codex:
@@ -130,6 +151,21 @@ All commands are run inside Claude Code or Codex:
 | `/claude-to-im logs 200` | "logs 200" | Show last 200 log lines |
 | `/claude-to-im reconfigure` | "reconfigure" / "修改配置" | Update config interactively |
 | `/claude-to-im doctor` | "doctor" / "诊断" | Diagnose issues |
+
+### Telegram / Discord chat commands
+
+These commands are sent to the bot in Telegram or Discord, not to Claude Code slash commands:
+
+| Chat command | Description |
+|---|---|
+| `/cwd /path` | Change the working directory for the current chat |
+| `/mode plan|code|ask` | Change execution mode |
+| `/provider claude|codex|copilot|auto` | Change runtime backend and auto-restart the bridge |
+| `/model <name>` | Change the current chat model and auto-restart the bridge |
+| `/model <provider> <name>` | Change runtime and model in one command |
+| `/status` | Show current session, runtime, cwd, and model |
+
+For Codex runtime, the bridge now forwards explicit model overrides to the Codex CLI. Use a model slug that Codex actually supports, such as `gpt-5.2-codex` or `gpt-5.2`. If a slug is not present in `~/.codex/models_cache.json`, Codex may ignore it or remap it.
 
 ## Platform Setup Guides
 

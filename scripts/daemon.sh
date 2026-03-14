@@ -30,6 +30,15 @@ ensure_built() {
         need_build=1
       fi
     fi
+    # Some bridge fixes are applied directly to the published dependency build output.
+    # If those dist files change, the daemon bundle must also be rebuilt.
+    if [ "$need_build" = "0" ] && [ -d "$SKILL_DIR/node_modules/claude-to-im/dist" ]; then
+      local newest_dep_dist
+      newest_dep_dist=$(find "$SKILL_DIR/node_modules/claude-to-im/dist" -name '*.js' -newer "$SKILL_DIR/dist/daemon.mjs" 2>/dev/null | head -1)
+      if [ -n "$newest_dep_dist" ]; then
+        need_build=1
+      fi
+    fi
   fi
   if [ "$need_build" = "1" ]; then
     echo "Building daemon bundle..."

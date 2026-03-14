@@ -50,9 +50,15 @@ function toApprovalPolicy(permissionMode?: string): string {
   }
 }
 
-/** Whether to forward bridge model to Codex CLI. Default: false (use Codex current/default model). */
-function shouldPassModelToCodex(): boolean {
-  return process.env.CTI_CODEX_PASS_MODEL === 'true';
+/**
+ * Whether to forward bridge model to Codex CLI.
+ * Default: true when the bridge has an explicit non-Claude model.
+ * Set CTI_CODEX_PASS_MODEL=false to force Codex to keep using its own default.
+ */
+function shouldPassModelToCodex(model?: string): boolean {
+  if (!model) return false;
+  if (looksLikeClaudeModel(model)) return false;
+  return process.env.CTI_CODEX_PASS_MODEL !== 'false';
 }
 
 function looksLikeClaudeModel(model?: string): boolean {
@@ -134,7 +140,7 @@ export class CodexProvider implements LLMProvider {
             }
 
             const approvalPolicy = toApprovalPolicy(params.permissionMode);
-            const passModel = shouldPassModelToCodex();
+            const passModel = shouldPassModelToCodex(params.model);
 
             const threadOptions: Record<string, unknown> = {
               ...(passModel && params.model ? { model: params.model } : {}),
