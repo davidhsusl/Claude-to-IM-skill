@@ -61,6 +61,16 @@ function shouldPassModelToCodex(model?: string): boolean {
   return process.env.CTI_CODEX_PASS_MODEL !== 'false';
 }
 
+function resolveSandboxMode(): string | undefined {
+  const sandboxMode = (process.env.CTI_CODEX_SANDBOX_MODE || '').trim();
+  if (!sandboxMode) return undefined;
+  if (['read-only', 'workspace-write', 'danger-full-access'].includes(sandboxMode)) {
+    return sandboxMode;
+  }
+  console.warn(`[codex-provider] Ignoring unsupported CTI_CODEX_SANDBOX_MODE: ${sandboxMode}`);
+  return undefined;
+}
+
 function looksLikeClaudeModel(model?: string): boolean {
   return !!model && /^claude[-_]/i.test(model);
 }
@@ -141,10 +151,12 @@ export class CodexProvider implements LLMProvider {
 
             const approvalPolicy = toApprovalPolicy(params.permissionMode);
             const passModel = shouldPassModelToCodex(params.model);
+            const sandboxMode = resolveSandboxMode();
 
             const threadOptions: Record<string, unknown> = {
               ...(passModel && params.model ? { model: params.model } : {}),
               ...(params.workingDirectory ? { workingDirectory: params.workingDirectory } : {}),
+              ...(sandboxMode ? { sandboxMode } : {}),
               approvalPolicy,
             };
 

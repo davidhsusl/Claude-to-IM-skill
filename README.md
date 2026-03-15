@@ -167,6 +167,8 @@ These commands are sent to the bot in Telegram or Discord, not to Claude Code sl
 
 For Codex runtime, the bridge now forwards explicit model overrides to the Codex CLI. Use a model slug that Codex actually supports, such as `gpt-5.2-codex` or `gpt-5.2`. If a slug is not present in `~/.codex/models_cache.json`, Codex may ignore it or remap it.
 
+Codex runtime also obeys Codex sandbox restrictions. If the bot needs to run `git commit`, `git push`, or other operations that write under `.git/`, set `CTI_CODEX_SANDBOX_MODE=danger-full-access` in `config.env`. The default Codex `workspace-write` sandbox can still reject writes inside `.git/`.
+
 ## Platform Setup Guides
 
 The `setup` wizard provides inline guidance for every step. Here's a summary:

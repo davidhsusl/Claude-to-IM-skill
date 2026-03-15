@@ -167,6 +167,8 @@ Telegram 与 Discord 支持在聊天中直接发送控制命令：
 
 对于 Codex runtime，bridge 现在会把显式设置的 model 继续传给 Codex CLI。请使用 Codex 实际支持的 model slug，例如 `gpt-5.2-codex` 或 `gpt-5.2`。如果某个 slug 不在 `~/.codex/models_cache.json` 里，Codex 可能会忽略它或自动改写。
 
+Codex runtime 也会受到 Codex sandbox 限制。如果机器人需要执行 `git commit`、`git push` 或其他会写入 `.git/` 的操作，请在 `config.env` 中设置 `CTI_CODEX_SANDBOX_MODE=danger-full-access`。Codex 默认的 `workspace-write` sandbox 仍可能拒绝 `.git/` 内部写入。
+
 ## 平台配置指南
 
 `setup` 向导会在每一步提供内联指引，以下是概要：
