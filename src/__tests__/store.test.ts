@@ -154,6 +154,61 @@ describe('JsonFileStore', () => {
     assert.equal(messages[1].content, 'hi');
   });
 
+  it('addMessage strips internal assistant event payloads down to text', () => {
+    const store = new JsonFileStore(makeSettings());
+    const session = store.createSession('test', 'model', undefined, '/tmp');
+
+    store.addMessage(
+      session.id,
+      'assistant',
+      JSON.stringify([
+        { type: 'tool_use', id: 'call-1', name: 'Read', input: { path: '/tmp/a' } },
+        { type: 'tool_result', tool_use_id: 'call-1', content: 'ok', is_error: false },
+        { type: 'text', text: 'Final answer' },
+      ]),
+    );
+
+    const { messages } = store.getMessages(session.id);
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0].content, 'Final answer');
+  });
+
+  it('loadMessages cleans existing polluted assistant history files', () => {
+    const store = new JsonFileStore(makeSettings());
+    const session = store.createSession('test', 'model', undefined, '/tmp');
+    const messagePath = path.join(DATA_DIR, 'messages', `${session.id}.json`);
+
+    fs.writeFileSync(messagePath, JSON.stringify([
+      { role: 'user', content: 'skill git-push' },
+      {
+        role: 'assistant',
+        content: JSON.stringify([
+          { type: 'tool_use', id: 'call-1', name: 'report_intent', input: { intent: 'Checking' } },
+          { type: 'tool_result', tool_use_id: 'call-1', content: 'Checking', is_error: false },
+          { type: 'text', text: '已清洗後的最終回覆' },
+        ]),
+      },
+      {
+        role: 'assistant',
+        content: JSON.stringify([
+          { type: 'tool_use', id: 'call-2', name: 'Read', input: { path: '/tmp/a' } },
+          { type: 'tool_result', tool_use_id: 'call-2', content: 'ok', is_error: false },
+        ]),
+      },
+    ], null, 2));
+
+    const reloaded = new JsonFileStore(makeSettings());
+    const { messages } = reloaded.getMessages(session.id);
+
+    assert.equal(messages.length, 2);
+    assert.equal(messages[0].content, 'skill git-push');
+    assert.equal(messages[1].content, '已清洗後的最終回覆');
+
+    const persisted = JSON.parse(fs.readFileSync(messagePath, 'utf-8')) as Array<{ role: string; content: string }>;
+    assert.equal(persisted.length, 2);
+    assert.equal(persisted[1].content, '已清洗後的最終回覆');
+  });
+
   it('getMessages with limit returns last N', () => {
     const store = new JsonFileStore(makeSettings());
     const session = store.createSession('test', 'model', undefined, '/tmp');

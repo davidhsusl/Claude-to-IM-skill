@@ -64,11 +64,25 @@ function splitCsv(value: string | undefined): string[] | undefined {
     .filter(Boolean);
 }
 
+export function syncProcessEnvFromConfigEntries(
+  entries: Map<string, string>,
+  opts?: { overwrite?: boolean },
+): void {
+  const overwrite = opts?.overwrite === true;
+  for (const [key, value] of entries) {
+    if (!key.startsWith('CTI_')) continue;
+    if (overwrite || process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
 export function loadConfig(): Config {
   let env = new Map<string, string>();
   try {
     const content = fs.readFileSync(CONFIG_PATH, "utf-8");
     env = parseEnvFile(content);
+    syncProcessEnvFromConfigEntries(env);
   } catch {
     // Config file doesn't exist yet — use defaults
   }

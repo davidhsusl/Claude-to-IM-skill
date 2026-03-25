@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,12 +15,41 @@ interface CopilotEvent {
   sessionId?: string;
 }
 
-const COPILOT_CANDIDATES = [
-  process.env.CTI_COPILOT_EXECUTABLE,
-  '/opt/homebrew/bin/copilot',
-  '/usr/local/bin/copilot',
-  path.join(os.homedir(), '.local', 'bin', 'copilot'),
-].filter((value): value is string => !!value);
+interface CopilotSpawnCommand {
+  command: string;
+  args: string[];
+}
+
+function quoteWindowsCmdArg(value: string): string {
+  if (value.length === 0) return '""';
+  if (!/[\s"&()\[\]{}^=;!'+,`~|<>]/.test(value)) return value;
+  return `"${value.replace(/(["^])/g, '^$1')}"`;
+}
+
+function getCopilotCandidatePaths(
+  platform: NodeJS.Platform = process.platform,
+  homeDir = os.homedir(),
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const candidates = [env.CTI_COPILOT_EXECUTABLE];
+
+  if (platform === 'win32') {
+    candidates.push(
+      path.join(homeDir, 'AppData', 'Roaming', 'Code', 'User', 'globalStorage', 'github.copilot-chat', 'copilotCli', 'copilot.bat'),
+      path.join(homeDir, 'AppData', 'Roaming', 'Code', 'User', 'globalStorage', 'github.copilot-chat', 'copilotCli', 'copilot.cmd'),
+      path.join(homeDir, 'AppData', 'Roaming', 'npm', 'copilot.cmd'),
+      path.join(homeDir, 'AppData', 'Roaming', 'npm', 'copilot.bat'),
+    );
+  } else {
+    candidates.push(
+      '/opt/homebrew/bin/copilot',
+      '/usr/local/bin/copilot',
+      path.join(homeDir, '.local', 'bin', 'copilot'),
+    );
+  }
+
+  return candidates.filter((value): value is string => !!value);
+}
 
 const MIME_EXT: Record<string, string> = {
   'image/png': '.png',
@@ -30,8 +59,15 @@ const MIME_EXT: Record<string, string> = {
   'image/webp': '.webp',
 };
 
-function isExecutable(filePath: string): boolean {
+function isRunnablePath(filePath: string, platform: NodeJS.Platform = process.platform): boolean {
   try {
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) return false;
+
+    if (platform === 'win32') {
+      return true;
+    }
+
     fs.accessSync(filePath, fs.constants.X_OK);
     return true;
   } catch {
@@ -39,13 +75,44 @@ function isExecutable(filePath: string): boolean {
   }
 }
 
-function resolveCopilotCliPath(): string | undefined {
-  for (const candidate of COPILOT_CANDIDATES) {
-    if (isExecutable(candidate)) return candidate;
+export function resolveWindowsCopilotPath(candidate: string): string | undefined {
+  const ext = path.extname(candidate).toLowerCase();
+  const base = ext ? candidate.slice(0, -ext.length) : candidate;
+  const variants = ext === '.ps1'
+    ? [`${base}.exe`, `${base}.cmd`, `${base}.bat`, candidate]
+    : [candidate, `${base}.exe`, `${base}.cmd`, `${base}.bat`, `${base}.ps1`];
+
+  for (const variant of variants) {
+    if (isRunnablePath(variant, 'win32')) return variant;
+  }
+
+  return undefined;
+}
+
+function resolveCopilotCliPath(platform: NodeJS.Platform = process.platform): string | undefined {
+  for (const candidate of getCopilotCandidatePaths(platform)) {
+    const resolved = platform === 'win32'
+      ? resolveWindowsCopilotPath(candidate)
+      : (isRunnablePath(candidate, platform) ? candidate : undefined);
+    if (resolved) return resolved;
   }
 
   try {
-    const resolved = execSync('command -v copilot', {
+    if (platform === 'win32') {
+      const output = execFileSync('where.exe', ['copilot'], {
+        encoding: 'utf-8',
+        env: buildSubprocessEnv(),
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+
+      for (const line of output.split(/\r?\n/)) {
+        const resolved = resolveWindowsCopilotPath(line.trim());
+        if (resolved) return resolved;
+      }
+      return undefined;
+    }
+
+    const resolved = execFileSync('/usr/bin/env', ['sh', '-lc', 'command -v copilot'], {
       encoding: 'utf-8',
       env: buildSubprocessEnv(),
       stdio: ['ignore', 'pipe', 'ignore'],
@@ -54,6 +121,32 @@ function resolveCopilotCliPath(): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+export function buildCopilotSpawnCommand(
+  cliPath: string,
+  cliArgs: string[],
+  platform: NodeJS.Platform = process.platform,
+): CopilotSpawnCommand {
+  if (platform === 'win32' && path.extname(cliPath).toLowerCase() === '.ps1') {
+    return {
+      command: 'powershell.exe',
+      args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', cliPath, ...cliArgs],
+    };
+  }
+
+  if (platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(cliPath).toLowerCase())) {
+    const commandLine = [cliPath, ...cliArgs].map(quoteWindowsCmdArg).join(' ');
+    return {
+      command: 'cmd.exe',
+      args: ['/d', '/s', '/c', commandLine],
+    };
+  }
+
+  return {
+    command: cliPath,
+    args: cliArgs,
+  };
 }
 
 function buildPrompt(params: StreamChatParams): string {
@@ -126,7 +219,8 @@ export class CopilotProvider implements LLMProvider {
         let finalText = '';
         let sessionId: string | undefined;
         let outputTokens = 0;
-        const child = spawn(self.cliPath, args, {
+        const command = buildCopilotSpawnCommand(self.cliPath, args);
+        const child = spawn(command.command, command.args, {
           cwd: workingDirectory,
           env: buildSubprocessEnv(),
           stdio: ['ignore', 'pipe', 'pipe'],

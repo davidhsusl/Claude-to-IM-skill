@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { maskSecret, configToSettings, type Config } from '../config.js';
+import { maskSecret, configToSettings, syncProcessEnvFromConfigEntries, type Config } from '../config.js';
 
 // ── maskSecret ──
 
@@ -166,6 +166,56 @@ describe('configToSettings', () => {
     assert.equal(m.has('telegram_bot_token'), false);
     assert.equal(m.has('bridge_discord_bot_token'), false);
     assert.equal(m.has('bridge_feishu_app_id'), false);
+  });
+});
+
+describe('syncProcessEnvFromConfigEntries', () => {
+  it('copies CTI variables into process.env when missing', () => {
+    const oldSandbox = process.env.CTI_CODEX_SANDBOX_MODE;
+    const oldNonCti = process.env.NON_CTI_SAMPLE;
+    delete process.env.CTI_CODEX_SANDBOX_MODE;
+    delete process.env.NON_CTI_SAMPLE;
+
+    try {
+      syncProcessEnvFromConfigEntries(new Map([
+        ['CTI_CODEX_SANDBOX_MODE', 'danger-full-access'],
+        ['NON_CTI_SAMPLE', 'ignored'],
+      ]));
+
+      assert.equal(process.env.CTI_CODEX_SANDBOX_MODE, 'danger-full-access');
+      assert.equal(process.env.NON_CTI_SAMPLE, undefined);
+    } finally {
+      if (oldSandbox === undefined) {
+        delete process.env.CTI_CODEX_SANDBOX_MODE;
+      } else {
+        process.env.CTI_CODEX_SANDBOX_MODE = oldSandbox;
+      }
+
+      if (oldNonCti === undefined) {
+        delete process.env.NON_CTI_SAMPLE;
+      } else {
+        process.env.NON_CTI_SAMPLE = oldNonCti;
+      }
+    }
+  });
+
+  it('preserves explicit process env by default', () => {
+    const oldSandbox = process.env.CTI_CODEX_SANDBOX_MODE;
+    process.env.CTI_CODEX_SANDBOX_MODE = 'workspace-write';
+
+    try {
+      syncProcessEnvFromConfigEntries(new Map([
+        ['CTI_CODEX_SANDBOX_MODE', 'danger-full-access'],
+      ]));
+
+      assert.equal(process.env.CTI_CODEX_SANDBOX_MODE, 'workspace-write');
+    } finally {
+      if (oldSandbox === undefined) {
+        delete process.env.CTI_CODEX_SANDBOX_MODE;
+      } else {
+        process.env.CTI_CODEX_SANDBOX_MODE = oldSandbox;
+      }
+    }
   });
 });
 
