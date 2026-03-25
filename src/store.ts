@@ -65,6 +65,69 @@ function isRuntimeName(value: string | undefined): value is RuntimeName {
   return value === 'claude' || value === 'codex' || value === 'copilot' || value === 'auto';
 }
 
+const INTERNAL_ASSISTANT_EVENT_TYPES = new Set([
+  'text',
+  'tool_use',
+  'tool_result',
+  'permission_request',
+  'status',
+  'result',
+  'task_update',
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function sanitizeAssistantContent(content: string): string | null {
+  const trimmed = content.trim();
+  if (!trimmed.startsWith('[')) return content;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return content;
+  }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    return content;
+  }
+
+  const textParts: string[] = [];
+  for (const item of parsed) {
+    if (!isRecord(item) || typeof item.type !== 'string' || !INTERNAL_ASSISTANT_EVENT_TYPES.has(item.type)) {
+      return content;
+    }
+
+    if (item.type !== 'text') continue;
+
+    const text = typeof item.text === 'string'
+      ? item.text
+      : typeof item.content === 'string'
+        ? item.content
+        : '';
+    if (text.trim()) {
+      textParts.push(text.trim());
+    }
+  }
+
+  return textParts.length > 0 ? textParts.join('\n\n') : null;
+}
+
+function sanitizeStoredMessage(message: BridgeMessage): BridgeMessage | null {
+  if (message.role !== 'assistant') return message;
+
+  const sanitizedContent = sanitizeAssistantContent(message.content);
+  if (sanitizedContent === null) return null;
+  if (sanitizedContent === message.content) return message;
+
+  return {
+    ...message,
+    content: sanitizedContent,
+  };
+}
+
 // ── Lock entry ──
 
 interface LockEntry {
@@ -193,11 +256,20 @@ export class JsonFileStore implements BridgeStore {
     if (this.messages.has(sessionId)) {
       return this.messages.get(sessionId)!;
     }
-    const msgs = readJson<BridgeMessage[]>(
+    const rawMsgs = readJson<BridgeMessage[]>(
       path.join(MESSAGES_DIR, `${sessionId}.json`),
       [],
     );
+    const msgs = rawMsgs
+      .map((message) => sanitizeStoredMessage(message))
+      .filter((message): message is BridgeMessage => message !== null);
     this.messages.set(sessionId, msgs);
+    if (
+      msgs.length !== rawMsgs.length
+      || msgs.some((message, index) => message.role !== rawMsgs[index]?.role || message.content !== rawMsgs[index]?.content)
+    ) {
+      this.persistMessages(sessionId);
+    }
     return msgs;
   }
 
@@ -309,7 +381,9 @@ export class JsonFileStore implements BridgeStore {
 
   addMessage(sessionId: string, role: string, content: string, _usage?: string | null): void {
     const msgs = this.loadMessages(sessionId);
-    msgs.push({ role, content });
+    const message = sanitizeStoredMessage({ role, content });
+    if (!message) return;
+    msgs.push(message);
     this.persistMessages(sessionId);
   }
 
