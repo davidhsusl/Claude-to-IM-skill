@@ -22,6 +22,9 @@ import type {
 import type { ChannelBinding, ChannelType } from 'claude-to-im/src/lib/bridge/types.js';
 import { CTI_HOME } from './config.js';
 
+export type RuntimeName = 'claude' | 'codex' | 'copilot' | 'auto';
+export type RuntimeChannelBinding = ChannelBinding & { runtime?: RuntimeName };
+
 const DATA_DIR = path.join(CTI_HOME, 'data');
 const MESSAGES_DIR = path.join(DATA_DIR, 'messages');
 
@@ -58,6 +61,10 @@ function now(): string {
   return new Date().toISOString();
 }
 
+function isRuntimeName(value: string | undefined): value is RuntimeName {
+  return value === 'claude' || value === 'codex' || value === 'copilot' || value === 'auto';
+}
+
 // ── Lock entry ──
 
 interface LockEntry {
@@ -71,7 +78,7 @@ interface LockEntry {
 export class JsonFileStore implements BridgeStore {
   private settings: Map<string, string>;
   private sessions = new Map<string, BridgeSession>();
-  private bindings = new Map<string, ChannelBinding>();
+  private bindings = new Map<string, RuntimeChannelBinding>();
   private messages = new Map<string, BridgeMessage[]>();
   private permissionLinks = new Map<string, PermissionLinkRecord>();
   private offsets = new Map<string, string>();
@@ -200,6 +207,11 @@ export class JsonFileStore implements BridgeStore {
     return this.settings.get(key) ?? null;
   }
 
+  private getDefaultRuntime(): RuntimeName {
+    const configuredRuntime = this.settings.get('bridge_default_runtime') || process.env.CTI_RUNTIME;
+    return isRuntimeName(configuredRuntime) ? configuredRuntime : 'claude';
+  }
+
   // ── Channel Bindings ──
 
   getChannelBinding(channelType: string, chatId: string): ChannelBinding | null {
@@ -210,18 +222,19 @@ export class JsonFileStore implements BridgeStore {
     const key = `${data.channelType}:${data.chatId}`;
     const existing = this.bindings.get(key);
     if (existing) {
-      const updated: ChannelBinding = {
+      const updated: RuntimeChannelBinding = {
         ...existing,
         codepilotSessionId: data.codepilotSessionId,
         workingDirectory: data.workingDirectory,
         model: data.model,
+        runtime: existing.runtime ?? this.getDefaultRuntime(),
         updatedAt: now(),
       };
       this.bindings.set(key, updated);
       this.persistBindings();
       return updated;
     }
-    const binding: ChannelBinding = {
+    const binding: RuntimeChannelBinding = {
       id: uuid(),
       channelType: data.channelType,
       chatId: data.chatId,
@@ -229,6 +242,7 @@ export class JsonFileStore implements BridgeStore {
       sdkSessionId: '',
       workingDirectory: data.workingDirectory,
       model: data.model,
+      runtime: this.getDefaultRuntime(),
       mode: (this.settings.get('bridge_default_mode') as 'code' | 'plan' | 'ask') || 'code',
       active: true,
       createdAt: now(),
@@ -242,7 +256,11 @@ export class JsonFileStore implements BridgeStore {
   updateChannelBinding(id: string, updates: Partial<ChannelBinding>): void {
     for (const [key, b] of this.bindings) {
       if (b.id === id) {
-        this.bindings.set(key, { ...b, ...updates, updatedAt: now() });
+        this.bindings.set(key, {
+          ...b,
+          ...(updates as Partial<RuntimeChannelBinding>),
+          updatedAt: now(),
+        });
         this.persistBindings();
         break;
       }

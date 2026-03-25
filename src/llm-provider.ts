@@ -112,19 +112,12 @@ export function buildSubprocessEnv(): Record<string, string> {
       // Pass through CTI_* so skill config is available
       if (k.startsWith('CTI_')) { out[k] = v; continue; }
     }
-    // Always pass through ANTHROPIC_* in claude/auto runtime —
-    // third-party API providers need these to reach the CLI subprocess.
-    const runtime = process.env.CTI_RUNTIME || 'claude';
-    if (runtime === 'claude' || runtime === 'auto') {
-      for (const [k, v] of Object.entries(process.env)) {
-        if (v !== undefined && k.startsWith('ANTHROPIC_')) out[k] = v;
-      }
-    }
-
-    // In codex/auto mode, pass through OPENAI_* / CODEX_* env vars
-    if (runtime === 'codex' || runtime === 'auto') {
-      for (const [k, v] of Object.entries(process.env)) {
-        if (v !== undefined && (k.startsWith('OPENAI_') || k.startsWith('CODEX_'))) out[k] = v;
+    // Multi-runtime mode may route different sessions to different providers,
+    // so keep all provider credential families available in strict mode.
+    for (const [k, v] of Object.entries(process.env)) {
+      if (v === undefined) continue;
+      if (k.startsWith('ANTHROPIC_') || k.startsWith('OPENAI_') || k.startsWith('CODEX_')) {
+        out[k] = v;
       }
     }
   }
@@ -452,12 +445,10 @@ export class SDKLLMProvider implements LLMProvider {
               model = undefined;
             }
 
-            // Only pass model to CLI if explicitly configured via CTI_DEFAULT_MODEL.
-            // Letting the CLI choose its own default avoids exit-code-1 failures
-            // when a stored model is inaccessible on the current machine/plan.
-            const passModel = !!process.env.CTI_DEFAULT_MODEL;
-            if (model && !passModel) {
-              console.log(`[llm-provider] Skipping model "${model}", using CLI default (set CTI_DEFAULT_MODEL to override)`);
+            // In multi-runtime mode, model overrides can now be scoped per chat.
+            // If the binding resolved an explicit Claude model, pass it through.
+            const passModel = !!model;
+            if (!passModel) {
               model = undefined;
             }
 
