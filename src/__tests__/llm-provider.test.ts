@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildSubprocessEnv,
   isAuthError,
   classifyAuthError,
   isNonClaudeModel,
@@ -27,6 +28,30 @@ function makeFakeController() {
 
 function freshState(): StreamState {
   return { hasReceivedResult: false, hasStreamedText: false, lastAssistantText: '' };
+}
+
+function withPatchedEnv(env: Record<string, string | undefined>, run: () => void): void {
+  const previous = new Map<string, string | undefined>();
+  for (const [key, value] of Object.entries(env)) {
+    previous.set(key, process.env[key]);
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
+  try {
+    run();
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
 }
 
 // ── classifyAuthError ──
@@ -173,6 +198,22 @@ describe('parseCliMajorVersion', () => {
   it('returns undefined for non-version strings', () => {
     assert.equal(parseCliMajorVersion('unknown'), undefined);
     assert.equal(parseCliMajorVersion(''), undefined);
+  });
+});
+
+describe('buildSubprocessEnv', () => {
+  it('keeps all provider credential families in strict mode', () => {
+    withPatchedEnv({
+      CTI_ENV_ISOLATION: 'strict',
+      ANTHROPIC_API_KEY: 'anthropic-test',
+      OPENAI_API_KEY: 'openai-test',
+      CODEX_API_KEY: 'codex-test',
+    }, () => {
+      const env = buildSubprocessEnv();
+      assert.equal(env.ANTHROPIC_API_KEY, 'anthropic-test');
+      assert.equal(env.OPENAI_API_KEY, 'openai-test');
+      assert.equal(env.CODEX_API_KEY, 'codex-test');
+    });
   });
 });
 

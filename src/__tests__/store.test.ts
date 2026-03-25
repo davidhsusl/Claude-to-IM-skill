@@ -86,6 +86,36 @@ describe('JsonFileStore', () => {
     assert.equal(b.mode, 'plan');
   });
 
+  it('upsertChannelBinding uses default runtime from settings', () => {
+    const settings = makeSettings();
+    settings.set('bridge_default_runtime', 'copilot');
+    const store = new JsonFileStore(settings);
+    const binding = store.upsertChannelBinding({
+      channelType: 'discord',
+      chatId: 'runtime-chat',
+      codepilotSessionId: 'sess-runtime',
+      workingDirectory: '/tmp',
+      model: '',
+    }) as { runtime?: string };
+    assert.equal(binding.runtime, 'copilot');
+  });
+
+  it('updateChannelBinding persists runtime overrides', () => {
+    const store = new JsonFileStore(makeSettings());
+    const binding = store.upsertChannelBinding({
+      channelType: 'discord',
+      chatId: 'runtime-override',
+      codepilotSessionId: 'sess-runtime-override',
+      workingDirectory: '/tmp',
+      model: '',
+    });
+
+    store.updateChannelBinding(binding.id, { runtime: 'codex' } as any);
+
+    const updated = store.getChannelBinding('discord', 'runtime-override') as { runtime?: string } | null;
+    assert.equal(updated?.runtime, 'codex');
+  });
+
   it('getChannelBinding returns null for missing', () => {
     const store = new JsonFileStore(makeSettings());
     assert.equal(store.getChannelBinding('telegram', 'missing'), null);

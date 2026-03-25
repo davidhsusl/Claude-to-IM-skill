@@ -39,6 +39,11 @@ describe('configToSettings', () => {
     assert.equal(m.get('remote_bridge_enabled'), 'true');
   });
 
+  it('maps default runtime for per-channel routing', () => {
+    const m = configToSettings({ ...base, runtime: 'copilot' });
+    assert.equal(m.get('bridge_default_runtime'), 'copilot');
+  });
+
   it('sets channel enabled flags based on enabledChannels', () => {
     const m = configToSettings({ ...base, enabledChannels: ['telegram', 'discord'] });
     assert.equal(m.get('bridge_telegram_enabled'), 'true');

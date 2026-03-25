@@ -174,6 +174,7 @@ export function maskSecret(value: string): string {
 export function configToSettings(config: Config): Map<string, string> {
   const m = new Map<string, string>();
   m.set("remote_bridge_enabled", "true");
+  m.set("bridge_default_runtime", config.runtime);
 
   // ── Telegram ──
   // Upstream keys: telegram_bot_token, bridge_telegram_enabled,
