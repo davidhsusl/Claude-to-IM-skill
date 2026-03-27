@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import type { FileAttachment, LLMProvider, StreamChatParams } from 'claude-to-im/src/lib/bridge/host.js';
+import type { FileAttachment, LLMProvider, StreamChatParams } from '../claude-to-im/src/lib/bridge/host.js';
 
 import { buildSubprocessEnv } from './llm-provider.js';
 import { sseEvent } from './sse-utils.js';

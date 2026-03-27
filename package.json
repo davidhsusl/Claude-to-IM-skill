@@ -4,7 +4,6 @@
   "description": "Claude Code Skill: Bridge IM platforms (Telegram, Discord, Feishu, QQ) to Claude Code sessions",
   "type": "module",
   "scripts": {
-    "postinstall": "node scripts/apply-dependency-patches.mjs",
     "build": "node scripts/build.js",
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/main.ts",
@@ -12,13 +11,18 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.62",
-    "claude-to-im": "github:op7418/claude-to-im"
+    "@larksuiteoapi/node-sdk": "^1.59.0",
+    "discord.js": "^14.25.1",
+    "markdown-it": "^14.1.1",
+    "ws": "^8.18.0"
   },
   "optionalDependencies": {
     "@openai/codex-sdk": "^0.110.0"
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
     "@types/node": "^22",
+    "@types/ws": "^8.5.0",
     "esbuild": "^0.25.0",
     "tsx": "^4.21.0",
     "typescript": "^5"

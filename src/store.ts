@@ -18,8 +18,8 @@ import type {
   PermissionLinkRecord,
   OutboundRefInput,
   UpsertChannelBindingInput,
-} from 'claude-to-im/src/lib/bridge/host.js';
-import type { ChannelBinding, ChannelType } from 'claude-to-im/src/lib/bridge/types.js';
+} from '../claude-to-im/src/lib/bridge/host.js';
+import type { ChannelBinding, ChannelType } from '../claude-to-im/src/lib/bridge/types.js';
 import { CTI_HOME } from './config.js';
 
 export type RuntimeName = 'claude' | 'codex' | 'copilot' | 'auto';
@@ -174,7 +174,10 @@ export class JsonFileStore implements BridgeStore {
       {},
     );
     for (const [key, b] of Object.entries(bindings)) {
-      this.bindings.set(key, b);
+      this.bindings.set(key, {
+        ...b,
+        runtime: isRuntimeName(b.runtime) ? b.runtime : this.getDefaultRuntime(),
+      });
     }
 
     // Permission links

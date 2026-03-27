@@ -209,6 +209,12 @@ The `setup` wizard provides inline guidance for every step. Here's a summary:
 
 ## Architecture
 
+## Development Note
+
+- The bridge library is now vendored directly in this repository under `claude-to-im/`.
+- Root `src/` imports the vendored bridge source via relative paths, so bridge-level fixes should be made in `claude-to-im/src/lib/bridge/` instead of `node_modules/claude-to-im`.
+- The root `package.json` now carries the bridge runtime dependencies directly. There is no longer a GitHub dependency on `github:op7418/claude-to-im`, and the old dependency patch script has been removed.
+
 ```
 ~/.claude-to-im/
 ├── config.env             ← Credentials & settings (chmod 600)

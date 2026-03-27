@@ -209,6 +209,12 @@ Codex runtime 也会受到 Codex sandbox 限制。如果机器人需要执行 `g
 
 ## 架构
 
+## 开发说明
+
+- bridge 库现在已经直接 vendored 到本仓库的 `claude-to-im/` 目录。
+- root `src/` 通过相对路径引用 vendored bridge 源码，因此后续如果要修改 bridge 逻辑，应直接改 `claude-to-im/src/lib/bridge/`，不要再改 `node_modules/claude-to-im`。
+- root `package.json` 已直接声明 bridge 运行所需依赖；项目不再依赖 `github:op7418/claude-to-im`，旧的 dependency patch 脚本也已经移除。
+
 ```
 ~/.claude-to-im/
 ├── config.env             ← 凭据与配置 (chmod 600)

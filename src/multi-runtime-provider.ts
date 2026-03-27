@@ -1,5 +1,5 @@
-import { getBridgeContext } from 'claude-to-im/src/lib/bridge/context.js';
-import type { LLMProvider, StreamChatParams } from 'claude-to-im/src/lib/bridge/host.js';
+import { getBridgeContext } from '../claude-to-im/src/lib/bridge/context.js';
+import type { LLMProvider, StreamChatParams } from '../claude-to-im/src/lib/bridge/host.js';
 
 import type { Config } from './config.js';
 import { CodexProvider } from './codex-provider.js';
